@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ARSBG</title>
+    <link rel="stylesheet" type="text/css" href="css/stylesheet.css">
+    <script src="js/jquery.1.11.3.min.js"></script>
+    <script>
+        function getParameterByName(name) {
+            name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+            var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+                results = regex.exec(location.search);
+            return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+        }
+
+        var unitList,
+            dev_mode = getParameterByName('debug') != '' || getParameterByName('dev') != '',
+            version = "0.6.8",
+            board_size = 20,
+            turn,
+            terrain = {
+                "desert": {
+                    "open": 18,
+                    "obstacle": 13
+                }
+            },
+            selected_terrain = "desert";
+
+        document.title = document.title + " v" +version;
+
+        function setPlayerName(player,name){
+            $("#player"+player).empty().append(name);
+        }
+
+        $(document).on('mouseover', '.unit', function(){
+            var $elem = $(this),
+                id = $elem.attr('id'),
+                player = $elem.attr('data-player').replace('player',''),
+                statboxId = id+"_statbox",
+                unit = Game.findUnit(id);
+            $('#message'+player).append(statBox(statboxId,player,unit));
+
+            Game.showEnemyRange(unit);
+
+            $elem.on('mouseout',function(){
+                $("#"+statboxId).remove();
+            });
+            $elem.on('mouseout',function(){
+                $('.possibleMoveOverlay').show();
+                $('.enemyRangeOverlay').remove();
+            });
+        }).ready(function(){
+            var turn = randomInt(1,2),
+                name;
+
+            if(dev_mode){
+                setPlayerName(1,'Dev Mode P1');
+                setPlayerName(2,'Dev Mode P2');
+            }else{
+                name = window.prompt("Player 1 Name");
+                setPlayerName(1,name.replace(null,'Player 1'));
+                name = window.prompt("Player 2 Name");
+                setPlayerName(2,name.replace(null,'Player 2'));
+            }
+            $('.scoreLabel').show();
+            $('#version').append(version);
+
+            Game = new Game();
+            unitList = Game.start();
+
+            startRound(Game,turn == 1 ? 1 : 2, turn == 1 ? 2 : 1);
+
+        });
+
+        function statBox(id, player, unit){
+            var box = "";
+            box += "<tr><td colspan='2' align='center' class='statBoxHeader'>"+unit.unitType.toUpperCase()+" Level "+unit.currentLevel+"</td></tr>"
+            box += "<tr><td>Level: </td><td>"+unit.currentLevel+"</td></tr>"
+            box += "<tr><td width='75px'>Health: </td><td>"+unit.currentHealth+"/"+unit.maxHealth+"</td></tr>"
+            box += "<tr><td>Attack: </td><td>"+unit.maxDamage+"</td></tr>"
+            box += "<tr><td>Range: </td><td>"+unit.attackRange+"</td></tr>"
+            box += "<tr valign='top'><td>Special: </td><td>"+unit.special()+"</td></tr>"
+            box += "<tr><td colspan='2' class='statBoxHeader'>Upgrades:</td></tr>"
+            for(var i = 1; i <= unit.upgradePath.length; i++){
+                var upgrade_class = unit.currentLevel >= i ? 'upgraded' : 'upgrade';
+                box += "<tr class="+upgrade_class+"><td>Lvl "+i+": </td>"
+                box += "<td>"+unit.upgradePath[i-1]['description']+"</td></tr>"
+            }
+            box += "<tr><td colspan='2' class='statBoxHeader'>Statistics:</td></tr>"
+            box += "<tr><td>Attacked: </td><td>"+unit.totalAttack+"</td></tr>"
+            box += "<tr><td>Damaged: </td><td>"+unit.totalDamage+"</td></tr>"
+            box += "<tr><td>Turns: </td><td>"+unit.turnsTaken+"</td></tr>"
+            box += "<tr><td>Killed: </td><td>"+unit.unitsKilled+"</td></tr>"
+
+            box += "</table>";
+            return "<table id='"+id+"' class='statBox'>"+box+"</table>";
+        }
+
+        function startRound(Game, friend, enemy){
+            turn = friend;
+            var friendName = $("#player"+friend),
+                friendMessage = $("#message"+friend);
+            Game.cleanUp(friend,enemy);
+            Game.startChecks(friend,enemy);
+
+            friendMessage.empty().append("Your turn.<br />Select a fsriendly unit.");
+            $("#playerSpace"+friend).addClass('playersTurn');
+
+            $('.friendlyUnit').removeClass('friendlyUnit');
+            $('.enemyUnit').removeClass('enemyUnit');
+            //Select friendly unit
+            $('.player'+friend).addClass('friendlyUnit').unbind('click').on('click',function(){
+                var $unit = $(this),
+                    guid = $unit.attr('id');
+                $('.enemyLocationInRange').removeClass('enemyLocationInRange');
+                $('.selectedUnit').removeClass('selectedUnit');
+                $unit.addClass('selectedUnit');
+                $('.player'+enemy).addClass('enemyUnit');
+                friendMessage.empty()
+                    .append("<div class='possibleMove'>Move to Free Space or Attack an Enemy</div>");
+                var friendly_selected = Game.findUnit(guid);
+                var possible_moves = Game.findAvailableMoves(friendly_selected);
+
+                //Move to position
+                $('.possibleMove').unbind('click').on('click',function(){
+                    var $possible = $(this).closest('td'),
+                        x = parseInt($possible.attr('data-column')),
+                        y = parseInt($possible.attr('data-row'));
+                    if(coordinateAvailable(x, y, possible_moves)){
+                        friendly_selected.turnsTaken++;
+                        var $friendly = $("#"+friendly_selected.id),
+                            //Animation Bug with weird offset, so for now we are 0ing the animating.
+                            //move_speed = 250,
+                            move_speed = 0,
+                            friend_x = $friendly.offset().top,
+                            friend_y = $friendly.offset().left,
+                            $destination = $('[data-coord="Y'+y+'X'+x+'"]'),
+                            dest_x = $destination.offset().top,
+                            dest_y = $destination.offset().left;
+
+                        $("#"+friendly_selected.id).css({
+                            opacity: 0.25,
+                            top: friend_x,
+                            left: friend_y
+                        }).animate({
+                            opacity: 1,
+                            top: dest_x,
+                            left: dest_y
+                        }, move_speed, function() {
+                            $("#"+friendly_selected.id).remove();
+                            friendly_selected.posX = x;
+                            friendly_selected.posY = y;
+                            friendly_selected.render();
+                            startRound(Game,enemy,friend);
+                            return;
+                        });
+                    }
+                });
+                //Or attack
+                $('.enemyUnit').unbind('click').on('click',function(){
+                    friendly_selected.turnsTaken++;
+                    if($(this).closest('td').hasClass('enemyLocationInRange')) {
+                        var $enemy = $(this),
+                            enemy_guid = $enemy.attr('id');
+
+                        var enemy_selected = Game.findUnit(enemy_guid);
+                        var enemy_x = parseInt(enemy_selected.posX),
+                            enemy_y = parseInt(enemy_selected.posY);
+
+                        var result = battle(friendly_selected, enemy_selected);
+                        $("#" + friendly_selected.id).remove();
+                        $("#" + enemy_selected.id).remove();
+                        friendly_selected.render();
+                        enemy_selected.render();
+                        startRound(Game, enemy, friend);
+                        return;
+                    }
+                });
+            });
+        };
+
+        function storeCoordinate(x, y, array) {
+            array.push(x);
+            array.push(y);
+        }
+
+        function flashMessage(x, y, message){
+            var msg_guid = guid();
+            $('body').append("<div id='"+msg_guid+"'>"+message+"</div>");
+            $("#"+msg_guid).css({
+                position:'absolute',
+                top: x,
+                left: y,
+                zIndex:5000
+            }).animate({
+                opacity: 0.25,
+                top: "-=60"
+            }, 2000, function() {
+                this.remove();
+            });
+            return true;
+        }
+
+        function shoot(friendly,enemy,amount){
+            var $friendly = $("#"+friendly.id),
+                $enemy = $("#"+enemy.id),
+                bullet_speed_ms = 250,
+                friend_x = $friendly.offset().top + ($friendly.height()/2),
+                friend_y = $friendly.offset().left + ($friendly.width()/2),
+                enemy_x = $enemy.offset().top + ($enemy.height()/2),
+                enemy_y = $enemy.offset().left + ($enemy.width()/2);
+
+            $('body').append("<div class='shot'> </div>");
+            $('.shot').css({
+                position:'absolute',
+                top: friend_x,
+                left: friend_y,
+                zIndex:5000
+            }).animate({
+                top: enemy_x,
+                left: enemy_y
+            }, bullet_speed_ms, function() {
+                this.remove();
+                amount = amount == 0 ? "MISS" : amount;
+                flashMessage(enemy_x-60, enemy_y, "<div class='damage'>"+amount+"</div>");
+            });
+        }
+
+        function battle(friendly,enemy){
+            var min = friendly.unitType == 'scout' ? 1 : 0,
+                attack = randomInt(min,friendly.maxDamage);
+            //Tank's deflect ability roll
+            if(enemy.unitType == 'tank' && Math.random() < enemy.deflectChance){
+                var $friendly = $('#'+enemy.id),
+                    enemy_x = $friendly.offset().top + ($friendly.height()/2),
+                    enemy_y = $friendly.offset().left + ($friendly.width()/2);
+                enemy.totalDeflected++;
+                flashMessage(enemy_x-60, enemy_y, "<div class='deflect'>DEFLECT</div>");
+            }else{
+                enemy.currentHealth -= attack;
+                enemy.totalDamage += attack;
+                friendly.totalAttack += attack;
+                if(enemy.currentHealth <= 0){
+                    enemy.defeat();
+                    friendly.victory();
+                }
+                shoot(friendly,enemy,attack*(-1));
+            }
+        };
+
+        function coordinateAvailable(x, y, coords){
+            for (var i = 0; i < coords.length; i+=2) {
+                var possible_x = coords[i];
+                var possible_y = coords[i+1];
+                if(possible_x == x && possible_y == y){
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function guid() {
+            function s4() {
+                return Math.floor((1 + Math.random()) * 0x10000)
+                    .toString(16)
+                    .substring(1);
+            }
+            return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+                s4() + '-' + s4() + s4() + s4();
+        }
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        var Unit = function(player, unitType, posX, posY){
+
+            this.id = guid();
+
+            switch(unitType){
+                case "scout":
+                    scout(this);
+                    break;
+                case "assaulter":
+                    assaulter(this);
+                    break;
+                default:
+                    tank(this);
+            }
+
+            this.logs           = [];
+            this.totalDamage    = 0;
+            this.totalDeflected = 0;
+            this.totalAttack    = 0;
+            this.unitsKilled    = 0;
+            this.turnsTaken     = 0;
+            this.currentHealth  = this.maxHealth;
+            this.unitType       = unitType;
+            this.player         = player;
+            this.playerNumber   = player.replace('player','');
+            this.posX           = posX;
+            this.posY           = posY;
+            this.dead           = false;
+
+            function scout(unit){
+                unit.maxHealth      = 10;
+                unit.maxDamage   = 5;
+                unit.attackRange    = 4;
+                unit.maxLevel       = 3;
+                unit.currentLevel   = 0;
+                unit.special        = function(){
+                    return "Sharpshooter (No Missed Shots)";
+                };
+                unit.upgradePath    = [
+                    {
+                        "description":"+4 health",
+                        "upgrade": function(){
+                            this.maxHealth      += 4;
+                        }
+                    },
+                    {
+                        "description":"+1 Damage",
+                        "upgrade": function(){
+                            this.maxDamage   += 1;
+                        }
+                    },
+                    {
+                        "description":"+1 Range",
+                        "upgrade": function(){
+                            this.attackRange    += 1;
+                        }
+                    }
+                ];
+            }
+            function assaulter(unit){
+                unit.maxHealth      = 15;
+                unit.maxDamage   = 5;
+                unit.attackRange    = 3;
+                unit.selfAidTick    = 1;
+                unit.selfAidCD      = 4;
+                unit.selfAidHeal    = 2;
+                unit.maxLevel       = 3;
+                unit.currentLevel   = 0;
+                unit.special        = function(){
+                    if(unit.currentHealth != unit.maxHealth){
+                        var rds_left = (unit.selfAidCD - unit.selfAidTick);
+                        return "Self-Aid (Heal +"+unit.selfAidHeal+" "+rds_left+" rd.)";
+                    }else{
+                        return "Self-Aid (Heal +"+unit.selfAidHeal+" every "+unit.selfAidCD+" rd.)";
+                    }
+                }
+                unit.upgradePath    = [
+                    {
+                        "description":"+2 Max Damage",
+                        "upgrade": function(){
+                            this.maxDamage    += 2;
+                        }
+                    },
+                    {
+                        "description":"+2 Health",
+                        "upgrade": function(){
+                            this.maxHealth     += 2;
+                        }
+                    },
+                    {
+                        "description":"+1 Self Aid Heal",
+                        "upgrade": function(){
+                            this.selfAidHeal    += 1;
+                        }
+                    }
+                ];
+                unit.selfAidTick    = 1;
+            }
+            function tank(unit){
+                unit.maxHealth      = 20;
+                unit.maxDamage   = 4;
+                unit.attackRange    = 2;
+                unit.deflectChance  = .25;
+                unit.maxLevel       = 3;
+                unit.currentLevel   = 0;
+                unit.special        = function(){
+                    return "Armor ("+unit.deflectChance*100+"% Chance to Deflect Attack)";
+                }
+                unit.upgradePath    = [
+                    {
+                        "description":"+10% Deflect, +1 Range",
+                        "upgrade": function(){
+                            this.deflectChance  = ((this.deflectChance*100)+10)/100;
+                            this.attackRange    += 1;
+                        }
+                    },
+                    {
+                        "description":"+2 Damage",
+                        "upgrade": function(){
+                            this.maxDamage   += 2;
+                        }
+                    },
+                    {
+                        "description":"+10% Deflect",
+                        "upgrade": function(){
+                            this.deflectChance  = ((this.deflectChance*100)+5)/100;
+                        }
+                    }
+                ];
+            }
+
+            this.victory = function(){
+                this.unitsKilled++;
+                if(this.currentLevel < this.maxLevel){
+                    this.currentLevel++;
+                    switch(this.unitType){
+                        case 'scout':
+                            switch(this.currentLevel){
+                                case 1:
+                                    this.maxHealth      += 4;
+                                    break;
+                                case 2:
+                                    this.maxDamage   += 1;
+                                    break;
+                                case 3:
+                                    this.attackRange    += 1;
+                                    break;
+                            }
+                            break;
+                        case 'assaulter':
+                            switch(this.currentLevel){
+                                case 1:
+                                    this.maxDamage   += 2;
+                                    break;
+                                case 2:
+                                    this.maxHealth      += 2;
+                                    break;
+                                case 3:
+                                    this.selfAidHeal    += 1;
+                                    break;
+                            }
+                            break;
+                        case 'tank':
+                            switch(this.currentLevel){
+                                case 1:
+                                    this.deflectChance  = ((this.deflectChance*100)+10)/100;
+                                    this.attackRange    += 1;
+                                    break;
+                                case 2:
+                                    this.maxDamage      += 5;
+                                    break;
+                                case 3:
+                                    this.deflectChance  = ((this.deflectChance*100)+15)/100;
+                                    break;
+                            }
+                            break;
+                    }
+                }
+                this.currentHealth = this.maxHealth;
+                var $scoreboard = $("#score"+this.playerNumber),
+                        new_score = parseInt($scoreboard.html())+1;
+                $scoreboard.html(new_score);
+            };
+
+            this.defeat = function(){
+                var tmp = [];
+                for(var i = 0; i < unitList.length ; i++){
+                    if(this.id != unitList[i].id){
+                        tmp.push(unitList[i]);
+                    }
+                }
+                unitList = tmp;
+                return true;
+            };
+
+            function upgrade(){
+
+            }
+
+            function healthBar(unit){
+                var html = "";
+                html += '<div class="healthBar">';
+                var currentHealth = unit.currentHealth,
+                        life_width = (unit.currentHealth/unit.maxHealth)*100,
+                        non_life_width = 100-life_width;
+
+                html += '<div style="width: '+life_width+'%" class="healthTick healthFull">&nbsp;</div>';
+                html += '<div style="width: '+non_life_width+'%" class="healthTick">&nbsp;</div>';
+
+                return html;
+            }
+
+            function unitLevels(unit){
+                var html = "";
+                for(var i = 1; i <= unit.currentLevel; i++){
+                    html += '<div class="unitLevel">&nbsp;</div>';
+                }
+                return html;
+            }
+
+            this.render = function(){
+                $("#"+this.id).remove();
+                if(this.currentHealth > 0){
+                    var healthIndicator = this.currentHealth < this.maxHealth/2 ? 'lowHealth' : '',
+                        unitType = this.unitType.substring(0,1).toUpperCase(),
+                        stats = "<div class='unitType'><img class='unitIcon' src='images/icons/"+this.unitType+".png' /></div>" +
+                                "<div class='healthStat "+healthIndicator+"'>"+healthBar(this)+"<div>" +
+                                "<div class='unitLevels'>"+unitLevels(this)+"<div>";
+
+                    htmlUnit = "<div id='"+this.id+"' data-player='"+this.player+"' class='unit "+this.player+"'>"+stats+"</div>";
+                    $('[data-coord="Y'+this.posY+'X'+this.posX+'"]').append(htmlUnit);
+                }
+            };
+
+            return this;
+        };
+
+        var Game = function() {
+            var $Field = $("#field");
+
+            this.logs = [];
+
+            this.addLog = function(message){
+                logs.push({
+                    "Time":new Date().toLocaleString(),
+                    "Event":message,
+                });
+            };
+
+            this.cleanUp = function(friend,enemy){
+                $('.possibleMove').unbind('click').removeClass('possibleMove');
+                $('.possibleMoveOverlay').remove();
+                $('.friendlyUnit').unbind('click');
+                $('#message'+enemy).empty();
+                $('.enemyRangeOverlay').remove();
+                $('.playersTurn').removeClass('playersTurn');
+                $('.enemyLocationInRange').unbind('click');
+                $('.enemyLocationInRange').removeClass('enemyLocationInRange');
+                $('.selectedUnit').removeClass('selectedUnit');
+                $('.enemyUnit').removeClass('enemyUnit');
+                friendly_selected = null;
+                possible_moves = [];
+            };
+
+            this.startChecks = function(friend,enemy){
+                for (var i = 0; i < unitList.length; i++) {
+                    if(!unitList[i].dead){
+                        //Assaulter Healing Ability
+                        if(unitList[i].unitType == 'assaulter' && unitList[i].currentHealth < unitList[i].maxHealth){
+                            if(unitList[i].selfAidCD == unitList[i].selfAidTick){
+                                unitList[i].selfAidTick = 1;
+                                unitList[i].currentHealth += unitList[i].selfAidHeal;
+                                var $friendly = $("#"+unitList[i].id),
+                                    x = $friendly.offset().top + ($friendly.height()/2) - 15,
+                                    y = $friendly.offset().left + ($friendly.width()/2);
+                                flashMessage(x,y,"<div class='heal'>+"+unitList[i].selfAidHeal+"</div>");
+                                unitList[i].render();
+                            }else{
+                                unitList[i].selfAidTick++;
+                            }
+                        }
+                    }
+                }
+            };
+
+            //Initialize the Setup Process
+            this.start = function(){
+                var out,
+                    y,
+                    x,
+                    allUnits = [];
+
+                //Build the board
+                for(y = 1; y <= board_size; y++){
+                    out = out+"<tr>";
+                    for(x = 1; x <= board_size; x++){
+                        out = out+"<td data-coord='Y"+y+"X"+x+"' data-row='"+y+"' data-column='"+x+"' title='"+x+"/"+y+"'></td>";
+                    }
+                    out = out+"</tr>";
+                }
+                $Field.append(out);
+
+                //Fill starting units
+                if(dev_mode){
+                    allUnits.push(new Unit("player1", "scout", 10, 9));
+                    allUnits.push(new Unit("player1", "assaulter", 10, 10));
+                    allUnits.push(new Unit("player1", "tank", 10, 11));
+                    allUnits.push(new Unit("player1", "scout", 10, 12));
+
+                    allUnits.push(new Unit("player2", "scout", 11, 9));
+                    allUnits.push(new Unit("player2", "assaulter", 11, 10));
+                    allUnits.push(new Unit("player2", "tank", 11, 11));
+                    allUnits.push(new Unit("player2", "scout", 11, 12));
+                }else{
+                    allUnits.push(new Unit("player1", "scout", 8, 5));
+                    allUnits.push(new Unit("player1", "scout", 5, 8));
+                    allUnits.push(new Unit("player1", "assaulter", 6, 9));
+                    allUnits.push(new Unit("player1", "assaulter", 7, 8));
+                    allUnits.push(new Unit("player1", "assaulter", 8, 7));
+                    allUnits.push(new Unit("player1", "assaulter", 9, 6));
+                    allUnits.push(new Unit("player1", "tank", 10, 5));
+                    allUnits.push(new Unit("player1", "tank", 10, 7));
+                    allUnits.push(new Unit("player1", "tank", 9, 8));
+                    allUnits.push(new Unit("player1", "tank", 8, 9));
+                    allUnits.push(new Unit("player1", "tank", 7, 10));
+                    allUnits.push(new Unit("player1", "tank", 5, 10));
+
+                    allUnits.push(new Unit("player2", "scout", 13, 16));
+                    allUnits.push(new Unit("player2", "scout", 16, 13));
+                    allUnits.push(new Unit("player2", "assaulter", 15, 12));
+                    allUnits.push(new Unit("player2", "assaulter", 14, 13));
+                    allUnits.push(new Unit("player2", "assaulter", 13, 14));
+                    allUnits.push(new Unit("player2", "assaulter", 12, 15));
+                    allUnits.push(new Unit("player2", "tank", 16, 11));
+                    allUnits.push(new Unit("player2", "tank", 14, 11));
+                    allUnits.push(new Unit("player2", "tank", 13, 12));
+                    allUnits.push(new Unit("player2", "tank", 12, 13));
+                    allUnits.push(new Unit("player2", "tank", 11, 14));
+                    allUnits.push(new Unit("player2", "tank", 11, 16));
+                }
+
+                //Build terrain
+                var img_root = "images/terrain/"+selected_terrain+"/",
+                    max,
+                    img,
+                    type;
+                for(y = 1; y <= board_size; y++){
+                    for(x = 1; x <= board_size; x++){
+                        chance_for_obstacle = Math.random() < .15;
+                        if($('[data-coord="Y'+y+'X'+x+'"] > div.unit').size() > 0){
+                            max = terrain["desert"]["open"];
+                            img = img_root+"open/"+randomInt(1,max)+".png";
+                            type = 'open';
+                        }else if(chance_for_obstacle){
+                            max = terrain["desert"]["obstacle"];
+                            img = img_root+"obstacle/"+randomInt(1,max)+".png";
+                            type = 'obstacle';
+                        }else{
+                            max = terrain["desert"]["open"];
+                            img = img_root+"open/"+randomInt(1,max)+".png";
+                            type = 'open';
+                        }
+                        $('[data-coord="Y'+y+'X'+x+'"]').append('<img class="terrain '+type+'" src="'+img+'"/>');
+                    }
+                }
+
+
+                //Render the units
+                for (i = 0; i < allUnits.length; ++i) {
+                    allUnits[i].render();
+                }
+
+                window.onbeforeunload = function(){
+                    if(!dev_mode) {
+                        return 'Reload the game?';
+                    }
+                };
+
+                return allUnits;
+            };
+
+            this.findUnit = function(guid){
+                for (i = 0; i < unitList.length; ++i) {
+                    if(unitList[i].id == guid){
+                        return unitList[i];
+                    }
+                }
+                return null;
+            };
+
+            this.findAvailableMoves = function(unit){
+                $('.possibleMove').removeClass('possibleMove');
+                $('.possibleMoveOverlay').remove();
+                var x = unit.posX,
+                    y = unit.posY,
+                    m = unit.attackRange,
+                    possibleMoves = [];
+
+                for(var i = x - m; i <= x + m; i++){
+                    for(var j = y - m; j <= y + m; j++){
+                        var no_unit = $('[data-coord="Y'+j+'X'+i+'"] > div.unit').size() <= 0;
+                        var obstacles = $('[data-coord="Y'+j+'X'+i+'"]').find('.obstacle').length;
+                        if(no_unit && obstacles <= 0){
+                            $('[data-coord="Y'+j+'X'+i+'"]').addClass('possibleMove').append('<div class="possibleMoveOverlay"> </div>');
+                            storeCoordinate(i, j, possibleMoves);
+                        }else if($('[data-coord="Y'+j+'X'+i+'"] > div.enemyUnit').size() == 1){
+                            $('[data-coord="Y'+j+'X'+i+'"]').addClass('enemyLocationInRange');
+                        }
+                    }
+                }
+                return possibleMoves;
+            };
+
+            this.showEnemyRange = function(unit){
+                if(unit.playerNumber != turn){
+                    $('.enemyRangeOverlay').remove();
+                    $('.possibleMoveOverlay').hide();
+                    var x = unit.posX,
+                            y = unit.posY,
+                            m = unit.attackRange,
+                            possibleMoves = [];
+
+                    for(var i = x - m; i <= x + m; i++){
+                        for(var j = y - m; j <= y + m; j++){
+                            var no_unit = $('[data-coord="Y'+j+'X'+i+'"] > div.unit').size() <= 0;
+                            var obstacles = $('[data-coord="Y'+j+'X'+i+'"]').find('.obstacle').length;
+                            if(no_unit && obstacles <= 0){
+                                $('[data-coord="Y'+j+'X'+i+'"]').append('<div class="enemyRangeOverlay"> </div>');
+                            }
+                        }
+                    }
+                }
+                return true;
+            };
+
+        }
+
+    </script>
+</head>
+<body>
+<table id="hud">
+    <tr valign="top">
+        <td id="playerSpace1" class="playerSpace" align="center" width="15%">
+            <div id="player1" class="playerLabel"></div>
+            <div class="scoreLabel">Killed <span id="score1">0</span> Units</div>
+            <div id="message1"></div>
+        </td>
+        <td width="70%">
+            <table id="field" align="center"></table>
+            <div style="text-align: center;">
+                A Really Simple Board Game version <span id="version"></span>
+                <a href="releasenotes/" target="_blank">(View Release Notes)</a>
+            </div>
+        </td>
+        <td id="playerSpace2" class="playerSpace" align="center" width="15%">
+            <div id="player2" class="playerLabel"></div>
+            <div class="scoreLabel">Killed <span id="score2">0</span> Units</div>
+            <div id="message2"></div>
+        </td>
+    </tr>
+</table>
+<div id="information">
+    <!--<span>
+        <div class="infoButton">Game Information</div>
+        <div class="infoButton">Game History</div>
+    </span>-->
+    <span>
+        <div id="game_information">
+            <p>Each player starts with a set number of units. Each unit has a specific damage, health, special ability and attack/move range.</p>
+            <p>When a unit destroys another an enemy, they regenerate health to 100% and gain a level.</p>
+            <p>Each unit has an upgrade path to gain attributes upon leveling.</p>
+            <p>Hover over a unit to view a statistics box with more information about the unit.</p>
+        </div>
+        <div id="game_history"></div>
+    </span>
+</div>
+</body>
+</html>

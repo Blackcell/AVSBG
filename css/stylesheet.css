@@ -1,0 +1,246 @@
+body{
+    margin: 0;
+    padding: 0;
+    background-color: #626262;
+    color: white;
+}
+#scoreboard{
+    border-collapse: collapse;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    border: 1px solid black;
+    font-size: 22px;
+}
+#scoreboard #score1{
+    width: 30%;
+    text-align: center;
+}
+#scoreboard #score2{
+    width: 30%;
+    text-align: center;
+}
+#hud{
+    border-collapse: collapse;
+    width: 100%;
+}
+#field{
+    border-collapse: collapse;
+    font-size: 14px;
+}
+#field tr td{
+    position:relative;
+    border: 1px solid #5e5e5e;
+    text-align: center;
+    height: 40px; !important;
+    width: 40px;
+    margin: 0;
+    padding: 0;
+}
+div.unit{
+    margin-top: 1px;
+    position: absolute;
+    bottom: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 40px;
+    color: #bcd5d1;
+}
+.playerSpace{
+    background-color: black;
+}
+#playerSpace1{
+    border-radius: 0 0 20px 0;
+    background-color: #4b5c4a;
+}
+div.player1{
+    border: 1px solid #4b5c4a;
+    background-color: #4b5c4a;
+}
+#playerSpace2{
+    border-radius: 0 0 0 20px;
+    background-color: #343837;
+}
+div.player2{
+    border: 1px solid #343837;
+    background-color: #343837;
+}
+div.friendlyUnit{
+    cursor: pointer;
+    cursor: grab;
+    color: white;
+}
+div.enemyUnit{
+    cursor: pointer;
+    cursor: crosshair;
+}
+div.selectedUnit{
+    border-color: #a8a930;
+}
+div.lowHealth{
+    color: #ba9077;
+}
+div.playerLabel{
+    cursor: pointer;
+    cursor: hand;
+    font-size: 22px;
+}
+div.scoreLabel{
+    font-size: 22px;
+    margin-bottom: 15px;
+    display: none;
+}
+div.unitType{
+    font-weight: bold;
+    font-size: 12px;
+}
+div.unit div span{
+    margin-left: 2px;
+    margin-right: 2px;
+}
+.possibleMove{
+    cursor: pointer;
+    cursor: grab;
+    background-color: #ddf8aa;
+}
+div.possibleMoveOverlay{
+    cursor: pointer;
+    cursor: grab;
+    margin-top: 1px;
+    position: absolute;
+    bottom: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 40px;
+    background-color: rgba(221,248,170,.45);
+}
+div.enemyRangeOverlay{
+    margin-top: 1px;
+    position: absolute;
+    bottom: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 40px;
+    background-color: rgba(209, 0, 0, 0.45);
+}
+.enemyLocationInRange{
+    background-color: #ff8f7f;
+}
+div.shot{
+    width: 7px;
+    height: 7px;
+    border-radius: 7px;
+    background-color: #ff7f1c;
+}
+div.damage{
+    font-size: 25px;
+    font-weight: bold;
+    color: red;
+}
+div.heal{
+    font-size: 25px;
+    font-weight: bold;
+    color: #1aff09;
+}
+div.deflect{
+    font-size: 25px;
+    font-weight: bold;
+    color: green;
+}
+table.statBox{
+    color: black;
+    border-collapse: collapse;
+    font-size: 14px;
+    background-color: #a99a66;
+    width: 100%;
+}
+td.statBoxHeader{
+    padding-top: 15px;
+    font-size: 1.25em;
+}
+table.statBox tr td:first-child{
+    text-align: right;
+}
+table.statBox tr td:last-child{
+    text-align: left;
+}
+td.playersTurn{
+    background-color: #6a8355 !important;
+}
+img.terrain{
+    display: block;
+    padding: 0;
+    margin: 0;
+    width: 40px;
+    height: 40px;
+}
+div.healthBar{
+    width: 100%;
+    font-size: 10px;
+    margin: 0px;
+}
+div.healthTick{
+    border-radius: 0 1px 1px 0;
+    padding: 0;
+    margin: 0;
+    display:inline-block;
+    height: 3px;
+    background-color: #d10000;
+}
+div.healthFull{
+    border-radius: 1px 0 0 1px;
+    background-color: green;
+}
+div.unitLevels{
+    width: 100%;
+}
+div.unitLevel{
+    margin-left: 1px;
+    margin-right: 1px;
+    display: inline-block;
+    height: 5px;
+    width: 5px;
+    border-radius: 5px;
+    background-color: gold;
+}
+.upgrade{
+    color: #595959;
+}
+.upgraded{
+    font-weight: bold;
+    color: green;
+}
+img.unitIcon{
+    width: 15px;
+    height: 15px;
+}
+
+#information{
+    height: 110px;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background-color: #7d6b55;
+}
+
+.infoButton{
+    cursor: pointer;
+    cursor: hand;
+    padding: 3px;
+    margin: 0px;
+}
+p{
+    padding: 3px;
+    margin: 0px;
+}
+#game_information{
+
+}
+#game_history{
+    display: none;
+}
+a{
+    color: inherit;
+    text-decoration: none;
+}
