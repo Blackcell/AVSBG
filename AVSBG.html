@@ -15,7 +15,7 @@
 
         var unitList,
             dev_mode = getParameterByName('debug') != '' || getParameterByName('dev') != '',
-            version = "0.7.0",
+            version = "0.6.8",
             board_size = 20,
             turn,
             terrain = {
@@ -69,6 +69,7 @@
             unitList = Game.start();
 
             startRound(Game,turn == 1 ? 1 : 2, turn == 1 ? 2 : 1);
+
         });
 
         function statBox(id, player, unit){
@@ -95,45 +96,39 @@
             return "<table id='"+id+"' class='statBox'>"+box+"</table>";
         }
 
-        let movesPerTurn = 3;
-        let remainingMoves = movesPerTurn;
         function startRound(Game, friend, enemy){
             turn = friend;
-            let friendName = $(`#player${friend}`),
-                friendMessage = $(`#message${friend}`);
-            let enemyName = $(`#player${enemy}`),
-                enemyMessage = $(`#message${enemy}`);
+            var friendName = $("#player"+friend),
+                friendMessage = $("#message"+friend);
             Game.cleanUp(friend,enemy);
             Game.startChecks(friend,enemy);
 
-            friendMessage.empty().append(`Your turn (${remainingMoves} remaining).<br />Select a friendly unit.`);
-            enemyMessage.empty();
-
-            $("#playerSpace" + friend).addClass('playersTurn');
+            friendMessage.empty().append("Your turn.<br />Select a fsriendly unit.");
+            $("#playerSpace"+friend).addClass('playersTurn');
 
             $('.friendlyUnit').removeClass('friendlyUnit');
             $('.enemyUnit').removeClass('enemyUnit');
             //Select friendly unit
-            $('.player' + friend).addClass('friendlyUnit').unbind('click').on('click',function(){
+            $('.player'+friend).addClass('friendlyUnit').unbind('click').on('click',function(){
                 var $unit = $(this),
                     guid = $unit.attr('id');
-                $(`.enemyLocationInRange`).removeClass('enemyLocationInRange');
-                $(`.selectedUnit`).removeClass('selectedUnit');
+                $('.enemyLocationInRange').removeClass('enemyLocationInRange');
+                $('.selectedUnit').removeClass('selectedUnit');
                 $unit.addClass('selectedUnit');
-                $(`.player${enemy}`).addClass('enemyUnit');
+                $('.player'+enemy).addClass('enemyUnit');
                 friendMessage.empty()
-                    .append(`<div class='possibleMove'>Move to Free Space or Attack an Enemy</div>`);
+                    .append("<div class='possibleMove'>Move to Free Space or Attack an Enemy</div>");
                 var friendly_selected = Game.findUnit(guid);
                 var possible_moves = Game.findAvailableMoves(friendly_selected);
 
                 //Move to position
-                $(`.possibleMove`).unbind('click').on('click',function(){
+                $('.possibleMove').unbind('click').on('click',function(){
                     var $possible = $(this).closest('td'),
                         x = parseInt($possible.attr('data-column')),
                         y = parseInt($possible.attr('data-row'));
                     if(coordinateAvailable(x, y, possible_moves)){
                         friendly_selected.turnsTaken++;
-                        var $friendly = $(`#${friendly_selected.id}`),
+                        var $friendly = $("#"+friendly_selected.id),
                             //Animation Bug with weird offset, so for now we are 0ing the animating.
                             //move_speed = 250,
                             move_speed = 0,
@@ -156,14 +151,8 @@
                             friendly_selected.posX = x;
                             friendly_selected.posY = y;
                             friendly_selected.render();
-
-                            remainingMoves--;
-                            if(remainingMoves === 0) {
-                                remainingMoves = movesPerTurn;
-                                startRound(Game, enemy, friend);
-                            } else {
-                                startRound(Game, friend, enemy)
-                            }
+                            startRound(Game,enemy,friend);
+                            return;
                         });
                     }
                 });
@@ -183,14 +172,8 @@
                         $("#" + enemy_selected.id).remove();
                         friendly_selected.render();
                         enemy_selected.render();
-
-                        remainingMoves--;
-                        if(remainingMoves === 0) {
-                            remainingMoves = movesPerTurn;
-                            startRound(Game, enemy, friend);
-                        } else {
-                            startRound(Game, friend, enemy)
-                        }
+                        startRound(Game, enemy, friend);
+                        return;
                     }
                 });
             });
@@ -527,7 +510,8 @@
         };
 
         var Game = function() {
-            let $Field = $("#field");
+            var $Field = $("#field");
+
             this.logs = [];
 
             this.addLog = function(message){
@@ -537,7 +521,7 @@
                 });
             };
 
-            this.cleanUp = function(game, friend,enemy){
+            this.cleanUp = function(friend,enemy){
                 $('.possibleMove').unbind('click').removeClass('possibleMove');
                 $('.possibleMoveOverlay').remove();
                 $('.friendlyUnit').unbind('click');
@@ -575,7 +559,7 @@
 
             //Initialize the Setup Process
             this.start = function(){
-                let out,
+                var out,
                     y,
                     x,
                     allUnits = [];
