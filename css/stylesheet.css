@@ -217,7 +217,7 @@ img.unitIcon{
 }
 
 #information{
-    height: 110px;
+    height: 98px;
     position: fixed;
     bottom: 0;
     width: 100%;
@@ -235,7 +235,6 @@ p{
     margin: 0px;
 }
 #game_information{
-
 }
 #game_history{
     display: none;
