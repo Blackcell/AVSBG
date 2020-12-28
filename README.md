@@ -1,6 +1,9 @@
 # AVSBG
 A very simple board game.
 
+# Play
+[http://games.bobby-gaylor.com/avsbg/](http://games.bobby-gaylor.com/avsbg/)
+
 # Start
 Simply clone the repo and open AVSBG.html in a browser.
 
